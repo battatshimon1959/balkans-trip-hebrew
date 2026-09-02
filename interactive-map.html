@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מפה אינטראקטיבית - טיול בלקן</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            padding: 20px;
+        }
+        
+        #map {
+            height: 600px;
+            border-radius: 10px;
+            border: 2px solid #ddd;
+        }
+        
+        .sidebar {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            overflow-y: auto;
+            max-height: 600px;
+        }
+        
+        .sidebar h3 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .city-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-right: 4px solid #667eea;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .city-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateX(-5px);
+        }
+        
+        .city-item.active {
+            background: #667eea;
+            color: white;
+            border-right-color: #764ba2;
+        }
+        
+        .city-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 5px;
+        }
+        
+        .city-date {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+        
+        .city-price {
+            font-size: 0.85em;
+            margin-top: 5px;
+            font-style: italic;
+        }
+        
+        .legend {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            font-size: 0.9em;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-left: 10px;
+            flex-shrink: 0;
+        }
+        
+        .route-line {
+            color: #667eea;
+        }
+        
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                max-height: 400px;
+            }
+            
+            .header h1 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗺️ טיול זוגי בלקן</h1>
+            <p>מסלול אינטראקטיבי - 15-28 בספטמבר 2026</p>
+        </div>
+        
+        <div class="content">
+            <div id="map"></div>
+            
+            <div class="sidebar">
+                <h3>🏙️ הערים בטיול</h3>
+                <div id="cities-list"></div>
+                
+                <div class="legend">
+                    <strong>מקרא:</strong>
+                    <div class="legend-item">
+                        <span>🔵 נקודת התחלה</span>
+                    </div>
+                    <div class="legend-item">
+                        <span>🟠 עצירה בטיול</span>
+                    </div>
+                    <div class="legend-item">
+                        <span>🟢 נקודת סיום</span>
+                    </div>
+                    <div class="legend-item">
+                        <span>━━━ מסלול הנסיעה</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const cities = [
+            {
+                name: "בודפשט",
+                lat: 47.4979,
+                lng: 19.0402,
+                date: "15/9 - התחלה",
+                price: "$82",
+                type: "start",
+                description: "בירת הונגריה - התחלת הטיול"
+            },
+            {
+                name: "פליטביצה",
+                lat: 45.8150,
+                lng: 15.6419,
+                date: "15/9",
+                price: "$189 ✓",
+                type: "stop",
+                description: "אגמי פליטביצה - פארק לאומי"
+            },
+            {
+                name: "סרייבו",
+                lat: 43.9159,
+                lng: 18.4131,
+                date: "16-18/9",
+                price: "€160 ✓",
+                type: "stop",
+                description: "בירת בוסניה - עיר עתיקה"
+            },
+            {
+                name: "מוסטר",
+                lat: 43.3386,
+                lng: 17.8132,
+                date: "18/9",
+                price: "$134 ✓",
+                type: "stop",
+                description: "גשר סטארי מוסט המפורסם"
+            },
+            {
+                name: "פראסט / מפרץ קוטור",
+                lat: 42.4604,
+                lng: 19.2706,
+                date: "19-23/9",
+                price: "£57 ✓",
+                type: "stop",
+                description: "חופי מונטנגרו היפים"
+            },
+            {
+                name: "ז'בליאק",
+                lat: 44.0843,
+                lng: 19.1064,
+                date: "24/9",
+                price: "⊗ בדיקה",
+                type: "stop",
+                description: "קוביץ אבן בזלאטיבור"
+            },
+            {
+                name: "זלאטיבור",
+                lat: 43.7270,
+                lng: 19.7170,
+                date: "24-26/9",
+                price: "€99 ✓",
+                type: "stop",
+                description: "הרי זלאטיבור - טבע יפה"
+            },
+            {
+                name: "נובי סאד",
+                lat: 45.2671,
+                lng: 19.8335,
+                date: "27/9",
+                price: "⊗ בדיקה",
+                type: "stop",
+                description: "עיר בסרביה - תרבות עשירה"
+            },
+            {
+                name: "בודפשט",
+                lat: 47.4979,
+                lng: 19.0402,
+                date: "28/9 - סיום",
+                price: "-",
+                type: "end",
+                description: "חזרה לבודפשט"
+            }
+        ];
+
+        // Initialize map
+        const map = L.map('map').setView([44.5, 18], 6);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Add markers
+        const markers = [];
+        cities.forEach((city, index) => {
+            let color;
+            if (city.type === 'start') {
+                color = '#3498db'; // Blue
+            } else if (city.type === 'end') {
+                color = '#2ecc71'; // Green
+            } else {
+                color = '#e74c3c'; // Red/Orange
+            }
+
+            const marker = L.circleMarker([city.lat, city.lng], {
+                radius: 10,
+                fillColor: color,
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(map);
+
+            const popup = `
+                <div style="text-align: center; direction: rtl;">
+                    <strong>${city.name}</strong><br>
+                    ${city.date}<br>
+                    ${city.price}<br>
+                    <small>${city.description}</small>
+                </div>
+            `;
+
+            marker.bindPopup(popup);
+            marker.on('click', function() {
+                highlightCity(index);
+            });
+
+            markers.push(marker);
+        });
+
+        // Draw route
+        const routeCoordinates = cities.map(city => [city.lat, city.lng]);
+        L.polyline(routeCoordinates, {
+            color: '#667eea',
+            weight: 3,
+            opacity: 0.7,
+            dashArray: '5, 5'
+        }).addTo(map);
+
+        // Populate cities list
+        const citiesList = document.getElementById('cities-list');
+        cities.forEach((city, index) => {
+            const cityDiv = document.createElement('div');
+            cityDiv.className = 'city-item';
+            cityDiv.innerHTML = `
+                <div class="city-name">${city.name}</div>
+                <div class="city-date">${city.date}</div>
+                <div class="city-price">${city.price}</div>
+            `;
+            
+            cityDiv.addEventListener('click', () => {
+                highlightCity(index);
+                map.setView([city.lat, city.lng], 10);
+                markers[index].openPopup();
+            });
+            
+            citiesList.appendChild(cityDiv);
+        });
+
+        function highlightCity(index) {
+            const items = document.querySelectorAll('.city-item');
+            items.forEach((item, i) => {
+                if (i === index) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
